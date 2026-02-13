@@ -1,5 +1,7 @@
 mod commands;
 mod config;
+mod daemon;
+mod proxy;
 mod registry;
 mod rewrite;
 
@@ -88,12 +90,12 @@ fn main() -> anyhow::Result<()> {
             commands::cmd_remove(&mut config, &name)
         }
         Commands::Start { port, foreground } => {
-            println!("TODO: start proxy on port {} (foreground={})", port, foreground);
-            Ok(())
+            if foreground {
+                tokio::runtime::Runtime::new()?.block_on(proxy::run_proxy(port))
+            } else {
+                daemon::start_daemon(port)
+            }
         }
-        Commands::Stop => {
-            println!("TODO: stop proxy");
-            Ok(())
-        }
+        Commands::Stop => daemon::stop_daemon(),
     }
 }
