@@ -125,11 +125,17 @@ async fn proxy_request(
     };
 
     // Build upstream URL
-    let mut upstream_url = format!(
-        "{}{}",
-        route.provider.base_url.trim_end_matches('/'),
-        route.upstream_path
-    );
+    // Strip /v1 prefix from upstream_path if base_url already ends with /v1
+    let base = route.provider.base_url.trim_end_matches('/');
+    let upstream_path = if base.ends_with("/v1") {
+        route
+            .upstream_path
+            .strip_prefix("/v1")
+            .unwrap_or(&route.upstream_path)
+    } else {
+        &route.upstream_path
+    };
+    let mut upstream_url = format!("{}{}", base, upstream_path);
     if let Some(query) = query {
         upstream_url.push('?');
         upstream_url.push_str(&query);
