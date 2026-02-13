@@ -1,0 +1,9 @@
+{
+  "name": "claude-model-switch",
+  "version": "0.1.0",
+  "description": "Switch Claude Code between any model provider (GLM, MiniMax, custom) instantly. Run multi-model tmux orchestration with different providers per role.",
+  "author": {
+    "name": "codejunkie99"
+  },
+  "license": "MIT"
+}
