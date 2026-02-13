@@ -1,15 +1,19 @@
 mod commands;
 mod config;
 mod daemon;
+mod orchestrator;
 mod proxy;
-mod registry;
 mod rewrite;
 
 use clap::{Parser, Subcommand};
 use config::ProfileConfig;
 
 #[derive(Parser)]
-#[command(name = "claude-model-switch", version, about = "Local API proxy for seamless Claude Code model provider switching")]
+#[command(
+    name = "claude-model-switch",
+    version,
+    about = "Local API proxy for seamless Claude Code model provider switching"
+)]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
@@ -27,9 +31,7 @@ enum Commands {
     /// Stop the proxy server
     Stop,
     /// Switch to a provider
-    Use {
-        provider: String,
-    },
+    Use { provider: String },
     /// Register API credentials for a provider
     Setup {
         provider: String,
@@ -58,6 +60,64 @@ enum Commands {
     Status,
     /// First-time setup
     Init,
+    /// Multi-agent tmux orchestration
+    Orchestrate {
+        #[command(subcommand)]
+        command: OrchestrateCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum OrchestrateCommands {
+    /// Start a multi-pane tmux session with role-specific providers/models
+    Start {
+        #[arg(long, default_value = "cms-swarm")]
+        session: String,
+        #[arg(long, default_value = "4000")]
+        port: u16,
+        #[arg(long, default_value = "trio")]
+        preset: String,
+        #[arg(long, default_value = ".")]
+        cwd: String,
+    },
+    /// Show pane status for an orchestration session
+    Status {
+        #[arg(long, default_value = "cms-swarm")]
+        session: String,
+    },
+    /// Stop an orchestration session
+    Stop {
+        #[arg(long, default_value = "cms-swarm")]
+        session: String,
+        #[arg(long)]
+        stop_proxy: bool,
+    },
+    /// Send a prompt to a role pane
+    Send {
+        #[arg(long, default_value = "cms-swarm")]
+        session: String,
+        role: String,
+        prompt: String,
+    },
+    /// Capture the recent output from a role pane
+    Capture {
+        #[arg(long, default_value = "cms-swarm")]
+        session: String,
+        role: String,
+        #[arg(long, default_value = "120")]
+        lines: u16,
+    },
+    /// Switch a role pane to another provider/model and relaunch Claude
+    Switch {
+        #[arg(long, default_value = "cms-swarm")]
+        session: String,
+        role: String,
+        provider: String,
+        #[arg(long)]
+        model: Option<String>,
+        #[arg(long, default_value = "4000")]
+        port: u16,
+    },
 }
 
 fn main() -> anyhow::Result<()> {
@@ -77,11 +137,21 @@ fn main() -> anyhow::Result<()> {
             let mut config = ProfileConfig::load()?;
             commands::cmd_use(&mut config, &provider)
         }
-        Commands::Setup { provider, api_key, auth_token } => {
+        Commands::Setup {
+            provider,
+            api_key,
+            auth_token,
+        } => {
             let mut config = ProfileConfig::load()?;
             commands::cmd_setup(&mut config, &provider, api_key, auth_token)
         }
-        Commands::Add { name, base_url, haiku, sonnet, opus } => {
+        Commands::Add {
+            name,
+            base_url,
+            haiku,
+            sonnet,
+            opus,
+        } => {
             let mut config = ProfileConfig::load()?;
             commands::cmd_add(&mut config, &name, &base_url, &haiku, &sonnet, &opus)
         }
@@ -97,5 +167,50 @@ fn main() -> anyhow::Result<()> {
             }
         }
         Commands::Stop => daemon::stop_daemon(),
+        Commands::Orchestrate { command } => match command {
+            OrchestrateCommands::Start {
+                session,
+                port,
+                preset,
+                cwd,
+            } => {
+                let config = ProfileConfig::load()?;
+                orchestrator::cmd_orchestrate_start(&config, &session, port, &preset, &cwd)
+            }
+            OrchestrateCommands::Status { session } => {
+                orchestrator::cmd_orchestrate_status(&session)
+            }
+            OrchestrateCommands::Stop {
+                session,
+                stop_proxy,
+            } => orchestrator::cmd_orchestrate_stop(&session, stop_proxy),
+            OrchestrateCommands::Send {
+                session,
+                role,
+                prompt,
+            } => orchestrator::cmd_orchestrate_send(&session, &role, &prompt),
+            OrchestrateCommands::Capture {
+                session,
+                role,
+                lines,
+            } => orchestrator::cmd_orchestrate_capture(&session, &role, lines),
+            OrchestrateCommands::Switch {
+                session,
+                role,
+                provider,
+                model,
+                port,
+            } => {
+                let config = ProfileConfig::load()?;
+                orchestrator::cmd_orchestrate_switch(
+                    &config,
+                    &session,
+                    &role,
+                    &provider,
+                    model.as_deref(),
+                    port,
+                )
+            }
+        },
     }
 }

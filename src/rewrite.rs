@@ -56,26 +56,41 @@ mod tests {
 
     #[test]
     fn test_rewrite_sonnet() {
-        assert_eq!(rewrite_model("claude-sonnet-4-20250514", &glm_provider()), "glm-4.7");
+        assert_eq!(
+            rewrite_model("claude-sonnet-4-20250514", &glm_provider()),
+            "glm-4.7"
+        );
     }
 
     #[test]
     fn test_rewrite_haiku() {
-        assert_eq!(rewrite_model("claude-haiku-3-20250101", &glm_provider()), "glm-4.5-air");
+        assert_eq!(
+            rewrite_model("claude-haiku-3-20250101", &glm_provider()),
+            "glm-4.5-air"
+        );
     }
 
     #[test]
     fn test_rewrite_opus() {
-        assert_eq!(rewrite_model("claude-opus-4-20250514", &glm_provider()), "glm-4.7");
+        assert_eq!(
+            rewrite_model("claude-opus-4-20250514", &glm_provider()),
+            "glm-4.7"
+        );
     }
 
     #[test]
     fn test_passthrough_no_mapping() {
-        assert_eq!(rewrite_model("claude-sonnet-4-20250514", &passthrough_provider()), "claude-sonnet-4-20250514");
+        assert_eq!(
+            rewrite_model("claude-sonnet-4-20250514", &passthrough_provider()),
+            "claude-sonnet-4-20250514"
+        );
     }
 
     #[test]
     fn test_unknown_model_passthrough() {
-        assert_eq!(rewrite_model("some-random-model", &glm_provider()), "some-random-model");
+        assert_eq!(
+            rewrite_model("some-random-model", &glm_provider()),
+            "some-random-model"
+        );
     }
 }

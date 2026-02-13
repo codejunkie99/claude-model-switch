@@ -1,8 +1,8 @@
 # claude-model-switch
 
-Use **any model** with Claude Code. Switch providers instantly, add your own API keys, and run multi-model tmux orchestration — no restart needed.
+Use **any model** with Claude Code. Add your own providers and API keys, switch instantly, and run multi-model tmux orchestration — no restart needed.
 
-A lightweight local proxy that sits between Claude Code and any OpenAI-compatible or Anthropic-compatible API. Bring your own models from GLM, MiniMax, or any provider with an API endpoint.
+A lightweight local proxy that sits between Claude Code and any OpenAI-compatible or Anthropic-compatible API.
 
 ## Install
 
@@ -32,20 +32,83 @@ cargo install --path .
 # 1. Point Claude Code at the local proxy
 claude-model-switch init
 
-# 2. Add your provider credentials
-claude-model-switch setup glm --api-key sk-your-key-here
+# 2. Add a provider
+claude-model-switch add openrouter \
+  --base-url https://openrouter.ai/api/v1 \
+  --haiku openrouter/auto \
+  --sonnet openrouter/auto \
+  --opus openrouter/auto
 
-# 3. Start the proxy
+# 3. Set your API key
+claude-model-switch setup openrouter --api-key sk-or-xxx
+
+# 4. Start the proxy
 claude-model-switch start
 
-# 4. Switch providers (instant, no restart)
-claude-model-switch use glm
+# 5. Switch to it
+claude-model-switch use openrouter
 
-# 5. Switch back anytime
+# 6. Switch back anytime
 claude-model-switch use claude
 ```
 
 That's it. Claude Code now routes through your chosen provider.
+
+## Add Any Provider
+
+Add any API endpoint that speaks the Anthropic or OpenAI messages format:
+
+```bash
+claude-model-switch add <name> \
+  --base-url <api-url> \
+  --haiku <fast-model> \
+  --sonnet <balanced-model> \
+  --opus <best-model>
+
+claude-model-switch setup <name> --api-key <your-key>
+```
+
+Claude Code uses three model tiers internally. You map each tier to whatever model your provider offers:
+
+- **haiku** — fast/cheap tier (used for quick tasks)
+- **sonnet** — balanced tier (used for most coding)
+- **opus** — best tier (used for complex reasoning)
+
+### Examples
+
+```bash
+# GLM via Z.ai
+claude-model-switch add glm \
+  --base-url https://open.z.ai/api/paas/v4 \
+  --haiku glm-4.5-air \
+  --sonnet glm-4.7 \
+  --opus glm-5
+claude-model-switch setup glm --api-key sk-xxx
+
+# MiniMax
+claude-model-switch add minimax \
+  --base-url https://api.minimax.io/anthropic/v1 \
+  --haiku MiniMax-M2 \
+  --sonnet MiniMax-M2.5 \
+  --opus MiniMax-M2.5
+claude-model-switch setup minimax --api-key xxx
+
+# OpenRouter
+claude-model-switch add openrouter \
+  --base-url https://openrouter.ai/api/v1 \
+  --haiku google/gemini-2.5-flash \
+  --sonnet anthropic/claude-sonnet-4 \
+  --opus deepseek/deepseek-r1
+claude-model-switch setup openrouter --api-key sk-or-xxx
+
+# Any custom endpoint
+claude-model-switch add my-llm \
+  --base-url https://api.example.com/v1 \
+  --haiku small-model \
+  --sonnet medium-model \
+  --opus large-model
+claude-model-switch setup my-llm --api-key xxx
+```
 
 ## Claude Code Plugin
 
@@ -82,42 +145,6 @@ The plugin's SessionStart hook automatically:
 2. Starts the proxy if not running
 3. Runs first-time init if needed
 
-## Built-in Providers
-
-| Provider | haiku | sonnet | opus |
-|----------|-------|--------|------|
-| `claude` | (passthrough) | (passthrough) | (passthrough) |
-| `glm` | glm-4.5-air | glm-4.7 | glm-4.7 |
-| `glm-flash` | glm-4.7-flashx | glm-4.7-flashx | glm-4.7-flashx |
-| `glm-5` | glm-4.7-flashx | glm-5-code | glm-5 |
-| `minimax` | MiniMax-M2 | MiniMax-M2.5 | MiniMax-M2.5 |
-| `minimax-fast` | MiniMax-M2 | MiniMax-M2.5-Lightning | MiniMax-M2.5 |
-
-## Add Any Provider
-
-Add any API endpoint that speaks the Anthropic or OpenAI messages format:
-
-```bash
-# Register the provider with model mappings
-claude-model-switch add my-provider \
-  --base-url https://api.example.com/v1 \
-  --haiku small-model \
-  --sonnet medium-model \
-  --opus large-model
-
-# Add credentials
-claude-model-switch setup my-provider --api-key sk-xxx
-
-# Switch to it
-claude-model-switch use my-provider
-```
-
-Claude Code uses three model tiers internally. You map each tier to whatever model your provider offers:
-
-- **haiku** — fast/cheap tier (used for quick tasks)
-- **sonnet** — balanced tier (used for most coding)
-- **opus** — best tier (used for complex reasoning)
-
 ## Multi-Model Orchestration
 
 Run multiple Claude Code instances in tmux, each using a different provider. Useful for parallel workstreams where different models have different strengths.
@@ -125,30 +152,20 @@ Run multiple Claude Code instances in tmux, each using a different provider. Use
 ### Start a session
 
 ```bash
-# Trio: planner + coder + reviewer
+# Trio: 3 panes using your first 3 configured providers
 claude-model-switch orchestrate start --preset trio
 
-# Duo: planner + coder
+# Duo: 2 panes using your first 2 configured providers
 claude-model-switch orchestrate start --preset duo
 
 # Attach to see all panes
 tmux attach -t cms-swarm
 ```
 
-### Default presets
+Presets automatically assign roles to your configured providers (sorted alphabetically):
 
-**trio:**
-| Role | Provider | Model tier |
-|------|----------|-----------|
-| planner | claude | sonnet |
-| coder | glm-5 | opus |
-| reviewer | minimax | sonnet |
-
-**duo:**
-| Role | Provider | Model tier |
-|------|----------|-----------|
-| planner | claude | sonnet |
-| coder | glm-5 | opus |
+- **trio** — requires 3+ providers: planner (1st/sonnet), coder (2nd/opus), reviewer (3rd/sonnet)
+- **duo** — requires 2+ providers: planner (1st/sonnet), coder (2nd/opus)
 
 ### Manage the session
 
@@ -164,7 +181,7 @@ claude-model-switch orchestrate send coder "Implement milestone 1"
 claude-model-switch orchestrate capture reviewer
 
 # Switch a role to a different provider mid-session
-claude-model-switch orchestrate switch coder minimax --model sonnet
+claude-model-switch orchestrate switch coder openrouter --model sonnet
 
 # Tear it down
 claude-model-switch orchestrate stop
@@ -174,15 +191,15 @@ claude-model-switch orchestrate stop
 
 ```
 Claude Code
-    │
-    ▼
+    |
+    v
 http://localhost:4000/v1  (local proxy)
-    │
-    ├─ Rewrites model name (claude-sonnet-4 → glm-4.7)
-    ├─ Sets auth headers for the active provider
-    │
-    ▼
-https://open.z.ai/api/paas/v4  (or whatever provider is active)
+    |
+    +-- Rewrites model name (claude-sonnet-4 -> your-model)
+    +-- Sets auth headers for the active provider
+    |
+    v
+https://api.your-provider.com/v1  (wherever you point it)
 ```
 
 The proxy runs on `localhost:4000` and supports two routing modes:
@@ -202,7 +219,7 @@ Switching providers sends `SIGHUP` to the proxy — it reloads config without dr
 | `use <provider>` | Switch the active provider |
 | `setup <provider> --api-key <key>` | Register API credentials |
 | `setup <provider> --auth-token <token>` | Register bearer token auth |
-| `add <name> --base-url <url> --haiku/--sonnet/--opus` | Add a custom provider |
+| `add <name> --base-url <url> --haiku/--sonnet/--opus` | Add a provider with model mappings |
 | `remove <name>` | Remove a provider |
 | `list` | List all providers |
 | `status` | Show current config and proxy state |
@@ -219,18 +236,18 @@ Config lives at `~/.claude/model-profiles.json`. You can edit it directly or use
 
 ```json
 {
-  "active": "glm-5",
+  "active": "openrouter",
   "providers": {
     "claude": {
       "base_url": "https://api.anthropic.com"
     },
-    "glm-5": {
-      "base_url": "https://open.z.ai/api/paas/v4",
-      "api_key": "sk-xxx",
+    "openrouter": {
+      "base_url": "https://openrouter.ai/api/v1",
+      "api_key": "sk-or-xxx",
       "models": {
-        "haiku": "glm-4.7-flashx",
-        "sonnet": "glm-5-code",
-        "opus": "glm-5"
+        "haiku": "google/gemini-2.5-flash",
+        "sonnet": "anthropic/claude-sonnet-4",
+        "opus": "deepseek/deepseek-r1"
       }
     }
   }

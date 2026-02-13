@@ -59,6 +59,12 @@ impl ProfileConfig {
             .get(&self.active)
             .with_context(|| format!("Active provider '{}' not found in profiles", self.active))
     }
+
+    pub fn provider(&self, name: &str) -> Result<&Provider> {
+        self.providers
+            .get(name)
+            .with_context(|| format!("Provider '{}' not found in profiles", name))
+    }
 }
 
 impl Default for ProfileConfig {
@@ -110,5 +116,17 @@ mod tests {
             providers: HashMap::new(),
         };
         assert!(config.active_provider().is_err());
+    }
+
+    #[test]
+    fn test_provider_lookup_found() {
+        let config = ProfileConfig::default();
+        assert!(config.provider("claude").is_ok());
+    }
+
+    #[test]
+    fn test_provider_lookup_missing() {
+        let config = ProfileConfig::default();
+        assert!(config.provider("missing").is_err());
     }
 }

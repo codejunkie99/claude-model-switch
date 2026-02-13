@@ -4,10 +4,10 @@ use std::process::Command;
 use crate::config::ProfileConfig;
 use crate::daemon;
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 struct RolePreset {
     name: &'static str,
-    provider: &'static str,
+    provider: String,
     model: &'static str,
 }
 
@@ -18,37 +18,36 @@ struct PaneInfo {
     current_command: String,
 }
 
-fn roles_for_preset(preset: &str) -> Result<Vec<RolePreset>> {
+fn roles_for_preset(preset: &str, config: &ProfileConfig) -> Result<Vec<RolePreset>> {
+    let mut providers: Vec<&str> = config.providers.keys().map(|s| s.as_str()).collect();
+    providers.sort();
+
     match preset {
-        "trio" => Ok(vec![
-            RolePreset {
-                name: "planner",
-                provider: "claude",
-                model: "sonnet",
-            },
-            RolePreset {
-                name: "coder",
-                provider: "glm-5",
-                model: "opus",
-            },
-            RolePreset {
-                name: "reviewer",
-                provider: "minimax",
-                model: "sonnet",
-            },
-        ]),
-        "duo" => Ok(vec![
-            RolePreset {
-                name: "planner",
-                provider: "claude",
-                model: "sonnet",
-            },
-            RolePreset {
-                name: "coder",
-                provider: "glm-5",
-                model: "opus",
-            },
-        ]),
+        "trio" => {
+            if providers.len() < 3 {
+                bail!(
+                    "Preset 'trio' requires at least 3 configured providers, found {}.\nAdd more with: claude-model-switch add <name> --base-url <url> --haiku <m> --sonnet <m> --opus <m>",
+                    providers.len()
+                );
+            }
+            Ok(vec![
+                RolePreset { name: "planner", provider: providers[0].to_string(), model: "sonnet" },
+                RolePreset { name: "coder", provider: providers[1].to_string(), model: "opus" },
+                RolePreset { name: "reviewer", provider: providers[2].to_string(), model: "sonnet" },
+            ])
+        }
+        "duo" => {
+            if providers.len() < 2 {
+                bail!(
+                    "Preset 'duo' requires at least 2 configured providers, found {}.\nAdd more with: claude-model-switch add <name> --base-url <url> --haiku <m> --sonnet <m> --opus <m>",
+                    providers.len()
+                );
+            }
+            Ok(vec![
+                RolePreset { name: "planner", provider: providers[0].to_string(), model: "sonnet" },
+                RolePreset { name: "coder", provider: providers[1].to_string(), model: "opus" },
+            ])
+        }
         _ => bail!("Unknown preset '{}'. Supported presets: trio, duo", preset),
     }
 }
@@ -186,9 +185,9 @@ pub fn cmd_orchestrate_start(
         bail!("tmux session '{}' already exists", session);
     }
 
-    let roles = roles_for_preset(preset)?;
+    let roles = roles_for_preset(preset, config)?;
     for role in &roles {
-        config.provider(role.provider)?;
+        config.provider(&role.provider)?;
     }
 
     match daemon::start_daemon(port) {
@@ -242,7 +241,7 @@ pub fn cmd_orchestrate_start(
             "-T".to_string(),
             role.name.to_string(),
         ])?;
-        let cmd = launch_command(port, role.provider, Some(role.model));
+        let cmd = launch_command(port, &role.provider, Some(role.model));
         send_keys(&target, &cmd)?;
     }
 

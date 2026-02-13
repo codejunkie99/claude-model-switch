@@ -1,6 +1,5 @@
-use anyhow::{bail, Context, Result};
 use crate::config::{ModelMapping, ProfileConfig, Provider};
-use crate::registry::builtin_providers;
+use anyhow::{bail, Context, Result};
 use std::path::PathBuf;
 
 pub fn cmd_list(config: &ProfileConfig) -> Result<()> {
@@ -8,7 +7,11 @@ pub fn cmd_list(config: &ProfileConfig) -> Result<()> {
     let mut names: Vec<_> = config.providers.keys().collect();
     names.sort();
     for name in names {
-        let marker = if *name == config.active { " (active)" } else { "" };
+        let marker = if *name == config.active {
+            " (active)"
+        } else {
+            ""
+        };
         let provider = &config.providers[name];
         let models = match &provider.models {
             Some(m) => format!("{} / {} / {}", m.haiku, m.sonnet, m.opus),
@@ -43,14 +46,10 @@ pub fn cmd_status(config: &ProfileConfig) -> Result<()> {
 
 pub fn cmd_use(config: &mut ProfileConfig, provider: &str) -> Result<()> {
     if !config.providers.contains_key(provider) {
-        let builtins = builtin_providers();
-        if builtins.contains_key(provider) {
-            bail!(
-                "Provider '{}' is a known provider but hasn't been set up yet.\nRun: claude-model-switch setup {} --api-key <YOUR_KEY>",
-                provider, provider
-            );
-        }
-        bail!("Unknown provider '{}'. Run 'claude-model-switch list' to see available providers.", provider);
+        bail!(
+            "Unknown provider '{}'. Run 'claude-model-switch list' to see available providers.\nTo add a new provider: claude-model-switch add {} --base-url <URL> --haiku <model> --sonnet <model> --opus <model>",
+            provider, provider
+        );
     }
     config.active = provider.to_string();
     config.save()?;
@@ -72,42 +71,60 @@ pub fn cmd_use(config: &mut ProfileConfig, provider: &str) -> Result<()> {
     Ok(())
 }
 
-pub fn cmd_setup(config: &mut ProfileConfig, provider: &str, api_key: Option<String>, auth_token: Option<String>) -> Result<()> {
+pub fn cmd_setup(
+    config: &mut ProfileConfig,
+    provider: &str,
+    api_key: Option<String>,
+    auth_token: Option<String>,
+) -> Result<()> {
     if api_key.is_none() && auth_token.is_none() {
         bail!("Provide --api-key or --auth-token");
     }
     if let Some(existing) = config.providers.get_mut(provider) {
-        if let Some(key) = api_key { existing.api_key = Some(key); }
-        if let Some(token) = auth_token { existing.auth_token = Some(token); }
-    } else {
-        let builtins = builtin_providers();
-        if let Some(mut builtin) = builtins.get(provider).cloned() {
-            builtin.api_key = api_key;
-            builtin.auth_token = auth_token;
-            config.providers.insert(provider.to_string(), builtin);
-        } else {
-            bail!("Unknown provider '{}'. Use 'claude-model-switch add' for custom providers.", provider);
+        if let Some(key) = api_key {
+            existing.api_key = Some(key);
         }
+        if let Some(token) = auth_token {
+            existing.auth_token = Some(token);
+        }
+    } else {
+        bail!(
+            "Unknown provider '{}'. Add it first with: claude-model-switch add {} --base-url <URL> --haiku <model> --sonnet <model> --opus <model>",
+            provider, provider
+        );
     }
     config.save()?;
     println!("Credentials saved for '{}'.", provider);
     Ok(())
 }
 
-pub fn cmd_add(config: &mut ProfileConfig, name: &str, base_url: &str, haiku: &str, sonnet: &str, opus: &str) -> Result<()> {
-    config.providers.insert(name.to_string(), Provider {
-        base_url: base_url.to_string(),
-        api_key: None,
-        auth_token: None,
-        models: Some(ModelMapping {
-            haiku: haiku.to_string(),
-            sonnet: sonnet.to_string(),
-            opus: opus.to_string(),
-        }),
-    });
+pub fn cmd_add(
+    config: &mut ProfileConfig,
+    name: &str,
+    base_url: &str,
+    haiku: &str,
+    sonnet: &str,
+    opus: &str,
+) -> Result<()> {
+    config.providers.insert(
+        name.to_string(),
+        Provider {
+            base_url: base_url.to_string(),
+            api_key: None,
+            auth_token: None,
+            models: Some(ModelMapping {
+                haiku: haiku.to_string(),
+                sonnet: sonnet.to_string(),
+                opus: opus.to_string(),
+            }),
+        },
+    );
     config.save()?;
     println!("Added provider '{}'.", name);
-    println!("Now run: claude-model-switch setup {} --api-key <YOUR_KEY>", name);
+    println!(
+        "Now run: claude-model-switch setup {} --api-key <YOUR_KEY>",
+        name
+    );
     Ok(())
 }
 
@@ -144,12 +161,10 @@ pub fn cmd_init() -> Result<()> {
         .entry("env")
         .or_insert(serde_json::json!({}));
 
-    env.as_object_mut()
-        .context("env is not an object")?
-        .insert(
-            "ANTHROPIC_BASE_URL".to_string(),
-            serde_json::Value::String("http://localhost:4000/v1".to_string()),
-        );
+    env.as_object_mut().context("env is not an object")?.insert(
+        "ANTHROPIC_BASE_URL".to_string(),
+        serde_json::Value::String("http://localhost:4000/v1".to_string()),
+    );
 
     if let Some(parent) = settings_path.parent() {
         std::fs::create_dir_all(parent)?;
@@ -160,7 +175,10 @@ pub fn cmd_init() -> Result<()> {
     config.save()?;
 
     println!("Initialized claude-model-switch!");
-    println!("  - Set ANTHROPIC_BASE_URL=http://localhost:4000/v1 in {}", settings_path.display());
+    println!(
+        "  - Set ANTHROPIC_BASE_URL=http://localhost:4000/v1 in {}",
+        settings_path.display()
+    );
     println!("  - Created default profile config");
     println!();
     println!("Next steps:");

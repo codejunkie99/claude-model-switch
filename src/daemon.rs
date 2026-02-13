@@ -1,5 +1,5 @@
-use anyhow::{bail, Context, Result};
 use crate::commands::pid_file_path;
+use anyhow::{bail, Context, Result};
 use std::process::Command;
 
 pub fn start_daemon(port: u16) -> Result<()> {
