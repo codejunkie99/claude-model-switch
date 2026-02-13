@@ -8,11 +8,19 @@ REPO="codejunkie99/claude-model-switch"
 CONFIG="$HOME/.claude/model-profiles.json"
 PID_FILE="$HOME/.claude/model-switch-proxy.pid"
 
-# Ensure install dir exists and is on PATH
+# Ensure install dir exists
 mkdir -p "$INSTALL_DIR"
 
+# Also check INSTALL_DIR directly in case it's not on PATH
+if command -v "$CMS_BIN" &>/dev/null; then
+  CMS_BIN="$(command -v "$CMS_BIN")"
+elif [ -x "$INSTALL_DIR/$CMS_BIN" ]; then
+  CMS_BIN="$INSTALL_DIR/$CMS_BIN"
+fi
+
 # Check if binary is installed
-if ! command -v "$CMS_BIN" &>/dev/null; then
+if [ ! -x "$CMS_BIN" ]; then
+  CMS_BIN="$INSTALL_DIR/claude-model-switch"
   echo "[cms] claude-model-switch not found. Installing..."
 
   OS="$(uname -s | tr '[:upper:]' '[:lower:]')"
