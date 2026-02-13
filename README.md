@@ -1,24 +1,46 @@
 # claude-model-switch
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![Release](https://img.shields.io/github/v/release/codejunkie99/claude-model-switch)](https://github.com/codejunkie99/claude-model-switch/releases/latest)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux-lightgrey)](https://github.com/codejunkie99/claude-model-switch/releases/latest)
+
 Use **any model** with Claude Code. Add your own providers and API keys, switch instantly, and run multi-model tmux orchestration — no restart needed.
 
 A lightweight local proxy that sits between Claude Code and any OpenAI-compatible or Anthropic-compatible API.
 
 ## Install
 
-**One-liner (recommended):**
+### Prebuilt binaries (recommended)
+
+**One-liner:**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/codejunkie99/claude-model-switch/main/install.sh | sh
 ```
 
-**Cargo:**
+**Or download directly:**
+
+| Platform | Download |
+|----------|----------|
+| macOS Apple Silicon | [claude-model-switch-aarch64-apple-darwin.tar.gz](https://github.com/codejunkie99/claude-model-switch/releases/latest/download/claude-model-switch-aarch64-apple-darwin.tar.gz) |
+| macOS Intel | [claude-model-switch-x86_64-apple-darwin.tar.gz](https://github.com/codejunkie99/claude-model-switch/releases/latest/download/claude-model-switch-x86_64-apple-darwin.tar.gz) |
+| Linux x64 | [claude-model-switch-x86_64-unknown-linux-gnu.tar.gz](https://github.com/codejunkie99/claude-model-switch/releases/latest/download/claude-model-switch-x86_64-unknown-linux-gnu.tar.gz) |
+| Linux ARM64 | [claude-model-switch-aarch64-unknown-linux-gnu.tar.gz](https://github.com/codejunkie99/claude-model-switch/releases/latest/download/claude-model-switch-aarch64-unknown-linux-gnu.tar.gz) |
+
+Extract and move to your PATH:
+
+```bash
+tar xzf claude-model-switch-*.tar.gz
+mv claude-model-switch ~/.local/bin/
+```
+
+### Cargo
 
 ```bash
 cargo install claude-model-switch
 ```
 
-**From source:**
+### From source
 
 ```bash
 git clone https://github.com/codejunkie99/claude-model-switch.git
@@ -252,6 +274,90 @@ Config lives at `~/.claude/model-profiles.json`. You can edit it directly or use
     }
   }
 }
+```
+
+## Troubleshooting
+
+### `claude-model-switch: command not found`
+
+The binary isn't on your PATH. Either:
+- Add `~/.local/bin` to your PATH: `export PATH="$HOME/.local/bin:$PATH"` (add to `~/.bashrc` or `~/.zshrc`)
+- Or move the binary somewhere already on your PATH: `mv claude-model-switch /usr/local/bin/`
+
+### Proxy won't start / port already in use
+
+```bash
+# Check if something is using port 4000
+lsof -i :4000
+
+# Stop any existing proxy
+claude-model-switch stop
+
+# Start on a different port
+claude-model-switch start --port 4001
+```
+
+If you change the port, also update `~/.claude/settings.json` to match:
+```json
+{ "env": { "ANTHROPIC_BASE_URL": "http://localhost:4001/v1" } }
+```
+
+### Claude Code not routing through the proxy
+
+1. Make sure `init` was run: `claude-model-switch init`
+2. Check `~/.claude/settings.json` has `ANTHROPIC_BASE_URL` set to `http://localhost:4000/v1`
+3. Make sure the proxy is running: `claude-model-switch status`
+4. Restart Claude Code after running `init` for the first time
+
+### Provider returns errors
+
+- Verify your API key: `claude-model-switch status` shows the active provider config
+- Check that the base URL is correct (some providers need `/v1` at the end, some don't)
+- Make sure the model names match what your provider expects exactly
+
+### Orchestration: `tmux: command not found`
+
+Install tmux:
+- macOS: `brew install tmux`
+- Ubuntu/Debian: `sudo apt install tmux`
+- Fedora: `sudo dnf install tmux`
+
+### Stale proxy after crash
+
+If the proxy crashed but the PID file remains:
+```bash
+rm ~/.claude/model-switch-proxy.pid
+claude-model-switch start
+```
+
+## Contributing
+
+Contributions welcome. Here's how:
+
+1. Fork the repo
+2. Create a branch: `git checkout -b my-feature`
+3. Make your changes
+4. Run tests: `cargo test`
+5. Commit and push
+6. Open a PR
+
+### Building from source
+
+```bash
+git clone https://github.com/codejunkie99/claude-model-switch.git
+cd claude-model-switch
+cargo build
+cargo test
+```
+
+### Cross-compiling
+
+The project uses `rustls` (no OpenSSL dependency), so cross-compilation works with [cargo-zigbuild](https://github.com/rust-cross/cargo-zigbuild):
+
+```bash
+cargo install cargo-zigbuild
+cargo zigbuild --release --target x86_64-unknown-linux-gnu
+cargo zigbuild --release --target aarch64-unknown-linux-gnu
 ```
 
 ## Requirements
