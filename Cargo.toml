@@ -1,0 +1,24 @@
+[package]
+name = "claude-model-switch"
+version = "0.1.0"
+edition = "2021"
+description = "Local API proxy for seamless Claude Code model provider switching"
+license = "MIT"
+keywords = ["claude", "anthropic", "proxy", "model", "llm"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+dirs = "6"
+anyhow = "1"
+tokio = { version = "1", features = ["full"] }
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "server-auto"] }
+http-body-util = "0.1"
+reqwest = { version = "0.12", features = ["json", "stream"] }
+bytes = "1"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
