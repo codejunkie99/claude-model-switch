@@ -43,14 +43,29 @@ enum Commands {
     /// Add a custom provider
     Add {
         name: String,
+        /// Shorthand: `add <name> <api-key>` (preset) or
+        /// `add <name> <base-url> <api-key>` (custom).
+        input1: Option<String>,
+        /// Shorthand API key used with `add <name> <base-url> <api-key>`.
+        input2: Option<String>,
+        /// Optional for built-in presets (glm, openrouter, minimax).
         #[arg(long)]
-        base_url: String,
+        base_url: Option<String>,
+        /// Optional model mapping for Claude tiers; provide all three or none.
         #[arg(long)]
-        haiku: String,
+        haiku: Option<String>,
+        /// Optional model mapping for Claude tiers; provide all three or none.
         #[arg(long)]
-        sonnet: String,
+        sonnet: Option<String>,
+        /// Optional model mapping for Claude tiers; provide all three or none.
         #[arg(long)]
-        opus: String,
+        opus: Option<String>,
+        /// Optional API key to save immediately.
+        #[arg(long)]
+        api_key: Option<String>,
+        /// Optional bearer token to save immediately.
+        #[arg(long)]
+        auth_token: Option<String>,
     },
     /// Remove a provider
     Remove { name: String },
@@ -147,13 +162,28 @@ fn main() -> anyhow::Result<()> {
         }
         Commands::Add {
             name,
+            input1,
+            input2,
             base_url,
             haiku,
             sonnet,
             opus,
+            api_key,
+            auth_token,
         } => {
             let mut config = ProfileConfig::load()?;
-            commands::cmd_add(&mut config, &name, &base_url, &haiku, &sonnet, &opus)
+            commands::cmd_add(
+                &mut config,
+                &name,
+                input1,
+                input2,
+                base_url.as_deref(),
+                haiku.as_deref(),
+                sonnet.as_deref(),
+                opus.as_deref(),
+                api_key,
+                auth_token,
+            )
         }
         Commands::Remove { name } => {
             let mut config = ProfileConfig::load()?;

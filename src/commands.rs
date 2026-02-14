@@ -2,6 +2,45 @@ use crate::config::{ModelMapping, ProfileConfig, Provider};
 use anyhow::{bail, Context, Result};
 use std::path::PathBuf;
 
+#[derive(Clone, Copy)]
+struct BuiltinProviderPreset {
+    base_url: &'static str,
+}
+
+fn builtin_provider_preset(name: &str) -> Option<BuiltinProviderPreset> {
+    let lower = name.to_ascii_lowercase();
+    match lower.as_str() {
+        "glm" => Some(BuiltinProviderPreset {
+            base_url: "https://open.z.ai/api/paas/v4",
+        }),
+        "openrouter" => Some(BuiltinProviderPreset {
+            base_url: "https://openrouter.ai/api/v1",
+        }),
+        "minimax" => Some(BuiltinProviderPreset {
+            base_url: "https://api.minimax.io/anthropic/v1",
+        }),
+        _ => None,
+    }
+}
+
+fn parse_credential(credential: String) -> Result<(Option<String>, Option<String>)> {
+    let lower = credential.to_ascii_lowercase();
+    if lower.starts_with("bearer:") {
+        let token = credential
+            .split_once(':')
+            .map(|(_, t)| t)
+            .unwrap_or_default()
+            .trim()
+            .to_string();
+        if token.is_empty() {
+            bail!("Bearer credential cannot be empty. Use: add <name> bearer:<token>");
+        }
+        Ok((None, Some(token)))
+    } else {
+        Ok((Some(credential), None))
+    }
+}
+
 pub fn cmd_list(config: &ProfileConfig) -> Result<()> {
     println!("Available providers:");
     let mut names: Vec<_> = config.providers.keys().collect();
@@ -47,8 +86,8 @@ pub fn cmd_status(config: &ProfileConfig) -> Result<()> {
 pub fn cmd_use(config: &mut ProfileConfig, provider: &str) -> Result<()> {
     if !config.providers.contains_key(provider) {
         bail!(
-            "Unknown provider '{}'. Run 'claude-model-switch list' to see available providers.\nTo add a new provider: claude-model-switch add {} --base-url <URL> --haiku <model> --sonnet <model> --opus <model>",
-            provider, provider
+            "Unknown provider '{}'. Run 'claude-model-switch list' to see available providers.\nTo add a new provider: claude-model-switch add {} <base-url> <api-key>\nOr for built-in presets: claude-model-switch add {} <api-key>",
+            provider, provider, provider
         );
     }
     config.active = provider.to_string();
@@ -89,8 +128,8 @@ pub fn cmd_setup(
         }
     } else {
         bail!(
-            "Unknown provider '{}'. Add it first with: claude-model-switch add {} --base-url <URL> --haiku <model> --sonnet <model> --opus <model>",
-            provider, provider
+            "Unknown provider '{}'. Add it first with: claude-model-switch add {} <base-url> <api-key>\nOr for built-in presets: claude-model-switch add {} <api-key>",
+            provider, provider, provider
         );
     }
     config.save()?;
@@ -101,30 +140,141 @@ pub fn cmd_setup(
 pub fn cmd_add(
     config: &mut ProfileConfig,
     name: &str,
-    base_url: &str,
-    haiku: &str,
-    sonnet: &str,
-    opus: &str,
+    input1: Option<String>,
+    input2: Option<String>,
+    base_url: Option<&str>,
+    haiku: Option<&str>,
+    sonnet: Option<&str>,
+    opus: Option<&str>,
+    api_key: Option<String>,
+    auth_token: Option<String>,
 ) -> Result<()> {
+    let mut base_url_reused_from_existing = false;
+    let mut base_url_from_preset: Option<&'static str> = None;
+
+    let (positional_base_url, positional_credential) = match (input1, input2) {
+        (Some(base), Some(credential)) => (Some(base), Some(credential)),
+        (Some(value), None) => {
+            if value.starts_with("http://") || value.starts_with("https://") {
+                (Some(value), None)
+            } else {
+                (None, Some(value))
+            }
+        }
+        (None, Some(_)) => unreachable!("clap positional parsing guarantees first arg exists"),
+        (None, None) => (None, None),
+    };
+
+    if positional_base_url.is_some() && base_url.is_some() {
+        bail!(
+            "Provide base URL either positionally (`add <name> <base-url> <api-key>`) or with --base-url, not both"
+        );
+    }
+
+    let (api_key, auth_token) = match positional_credential {
+        Some(credential) => {
+            if api_key.is_some() || auth_token.is_some() {
+                bail!(
+                    "Use either positional credential (`add <name> [<base-url>] <credential>`) or --api-key/--auth-token flags, not both"
+                );
+            }
+            parse_credential(credential)?
+        }
+        None => (api_key, auth_token),
+    };
+
+    let existing = config.providers.get(name).cloned();
+    let preset = builtin_provider_preset(name);
+    let resolved_base_url = match base_url.or(positional_base_url.as_deref()) {
+        Some(url) => url.to_string(),
+        None => {
+            if let Some(existing_provider) = &existing {
+                base_url_reused_from_existing = true;
+                existing_provider.base_url.clone()
+            } else if let Some(preset) = preset {
+                base_url_from_preset = Some(preset.base_url);
+                preset.base_url.to_string()
+            } else {
+                bail!(
+                    "Missing base URL for provider '{}'. Use: claude-model-switch add {} <base-url> <api-key>\nOr for built-in presets: claude-model-switch add {} <api-key>",
+                    name, name, name
+                );
+            }
+        }
+    };
+
+    let models = match (haiku, sonnet, opus, existing.as_ref()) {
+        (None, None, None, Some(existing_provider)) => existing_provider.models.clone(),
+        (None, None, None, None) => None,
+        (Some(haiku), Some(sonnet), Some(opus), _) => Some(ModelMapping {
+            haiku: haiku.to_string(),
+            sonnet: sonnet.to_string(),
+            opus: opus.to_string(),
+        }),
+        _ => {
+            bail!(
+                "If you provide model mappings, pass all three flags: --haiku <model> --sonnet <model> --opus <model>"
+            )
+        }
+    };
+
+    let resolved_api_key = match api_key {
+        Some(key) => Some(key),
+        None => existing.as_ref().and_then(|p| p.api_key.clone()),
+    };
+    let resolved_auth_token = match auth_token {
+        Some(token) => Some(token),
+        None => existing.as_ref().and_then(|p| p.auth_token.clone()),
+    };
+
+    let provider_existed = existing.is_some();
+    let has_model_mapping = models.is_some();
+
     config.providers.insert(
         name.to_string(),
         Provider {
-            base_url: base_url.to_string(),
-            api_key: None,
-            auth_token: None,
-            models: Some(ModelMapping {
-                haiku: haiku.to_string(),
-                sonnet: sonnet.to_string(),
-                opus: opus.to_string(),
-            }),
+            base_url: resolved_base_url.clone(),
+            api_key: resolved_api_key,
+            auth_token: resolved_auth_token,
+            models,
         },
     );
     config.save()?;
-    println!("Added provider '{}'.", name);
-    println!(
-        "Now run: claude-model-switch setup {} --api-key <YOUR_KEY>",
-        name
-    );
+    if provider_existed {
+        println!("Updated provider '{}'.", name);
+    } else {
+        println!("Added provider '{}'.", name);
+    }
+    if base_url_reused_from_existing {
+        println!(
+            "Base URL reused from existing provider: {}",
+            resolved_base_url
+        );
+    } else if let Some(preset_url) = base_url_from_preset {
+        println!(
+            "Base URL preset applied: {} -> {}",
+            name.to_ascii_lowercase(),
+            preset_url
+        );
+    }
+    if has_model_mapping {
+        println!("Model rewriting: enabled for Claude tiers (haiku/sonnet/opus).");
+    } else {
+        println!("Model rewriting: passthrough (all model IDs forwarded as-is).");
+    }
+    if config
+        .providers
+        .get(name)
+        .map(|p| p.api_key.is_some() || p.auth_token.is_some())
+        .unwrap_or(false)
+    {
+        println!("Credentials saved for '{}'.", name);
+    } else {
+        println!(
+            "Now run: claude-model-switch setup {} --api-key <YOUR_KEY>",
+            name
+        );
+    }
     Ok(())
 }
 

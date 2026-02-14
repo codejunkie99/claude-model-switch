@@ -125,9 +125,14 @@ async fn proxy_request(
     };
 
     // Build upstream URL
-    // Strip /v1 prefix from upstream_path if base_url already ends with /v1
+    // The incoming path starts with /v1 (Anthropic convention).
+    // If base_url has no path (just a host like https://api.anthropic.com),
+    // keep /v1. Otherwise strip it to avoid doubling with the provider's path.
     let base = route.provider.base_url.trim_end_matches('/');
-    let upstream_path = if base.ends_with("/v1") {
+    let base_has_path = url::Url::parse(base)
+        .map(|u| u.path() != "/" && u.path() != "")
+        .unwrap_or(false);
+    let upstream_path = if base_has_path {
         route
             .upstream_path
             .strip_prefix("/v1")
@@ -142,7 +147,7 @@ async fn proxy_request(
     }
 
     // Build upstream request
-    let mut upstream_req = state.client.request(method, &upstream_url);
+    let mut upstream_req = state.client.request(method.clone(), &upstream_url);
 
     // Copy relevant headers (skip hop-by-hop; forward inbound auth unless provider has explicit auth configured).
     let provider_has_explicit_auth =
@@ -173,6 +178,8 @@ async fn proxy_request(
     if !body_bytes.is_empty() {
         upstream_req = upstream_req.header("content-type", "application/json");
     }
+
+    eprintln!("[proxy] -> {} {}", method, upstream_url);
 
     // Send
     let upstream_resp = upstream_req

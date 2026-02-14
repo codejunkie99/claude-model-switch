@@ -54,23 +54,16 @@ cargo install --path .
 # 1. Point Claude Code at the local proxy
 claude-model-switch init
 
-# 2. Add a provider
-claude-model-switch add openrouter \
-  --base-url https://openrouter.ai/api/v1 \
-  --haiku openrouter/auto \
-  --sonnet openrouter/auto \
-  --opus openrouter/auto
+# 2. One command: add provider + save key (preset base URL)
+claude-model-switch add glm sk-xxx
 
-# 3. Set your API key
-claude-model-switch setup openrouter --api-key sk-or-xxx
-
-# 4. Start the proxy
+# 3. Start the proxy
 claude-model-switch start
 
-# 5. Switch to it
-claude-model-switch use openrouter
+# 4. Switch to it
+claude-model-switch use glm
 
-# 6. Switch back anytime
+# 5. Switch back anytime
 claude-model-switch use claude
 ```
 
@@ -82,15 +75,50 @@ Add any API endpoint that speaks the Anthropic or OpenAI messages format:
 
 ```bash
 claude-model-switch add <name> \
+  <api-url> \
+  <api-key>
+
+# or set credentials later:
+claude-model-switch setup <name> --api-key <your-key>
+```
+
+This creates a **passthrough provider**: whatever model ID Claude sends is forwarded as-is.
+
+Built-in provider presets let users skip `--base-url`:
+
+```bash
+claude-model-switch add glm sk-xxx
+claude-model-switch add openrouter sk-or-xxx
+claude-model-switch add minimax xxx
+```
+
+If a provider already exists, you can update only the key and it reuses the saved base URL:
+
+```bash
+# First time
+claude-model-switch add acme https://api.acme.ai/v1 sk-old
+
+# Later key rotation (base URL reused automatically)
+claude-model-switch add acme sk-new
+```
+
+Flag-based syntax still works if you prefer it:
+
+```bash
+claude-model-switch add <name> --base-url <api-url> --api-key <your-key>
+```
+
+If you want Claude-tier rewriting, pass all three mapping flags:
+
+```bash
+claude-model-switch add <name> \
   --base-url <api-url> \
   --haiku <fast-model> \
   --sonnet <balanced-model> \
   --opus <best-model>
-
-claude-model-switch setup <name> --api-key <your-key>
 ```
 
-Claude Code uses three model tiers internally. You map each tier to whatever model your provider offers:
+Claude Code uses three model tiers internally. Tier mapping lets you map each tier to whatever model your provider offers:
 
 - **haiku** — fast/cheap tier (used for quick tasks)
 - **sonnet** — balanced tier (used for most coding)
@@ -241,7 +269,7 @@ Switching providers sends `SIGHUP` to the proxy — it reloads config without dr
 | `use <provider>` | Switch the active provider |
 | `setup <provider> --api-key <key>` | Register API credentials |
 | `setup <provider> --auth-token <token>` | Register bearer token auth |
-| `add <name> --base-url <url> --haiku/--sonnet/--opus` | Add a provider with model mappings |
+| `add <name> [<base-url>] [<api-key>] [--haiku <m> --sonnet <m> --opus <m>]` | Add/update provider (for presets, `add <name> <api-key>` works) |
 | `remove <name>` | Remove a provider |
 | `list` | List all providers |
 | `status` | Show current config and proxy state |

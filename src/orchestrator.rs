@@ -26,26 +26,46 @@ fn roles_for_preset(preset: &str, config: &ProfileConfig) -> Result<Vec<RolePres
         "trio" => {
             if providers.len() < 3 {
                 bail!(
-                    "Preset 'trio' requires at least 3 configured providers, found {}.\nAdd more with: claude-model-switch add <name> --base-url <url> --haiku <m> --sonnet <m> --opus <m>",
+                    "Preset 'trio' requires at least 3 configured providers, found {}.\nAdd more with: claude-model-switch add <name> --base-url <url> [--haiku <m> --sonnet <m> --opus <m>]",
                     providers.len()
                 );
             }
             Ok(vec![
-                RolePreset { name: "planner", provider: providers[0].to_string(), model: "sonnet" },
-                RolePreset { name: "coder", provider: providers[1].to_string(), model: "opus" },
-                RolePreset { name: "reviewer", provider: providers[2].to_string(), model: "sonnet" },
+                RolePreset {
+                    name: "planner",
+                    provider: providers[0].to_string(),
+                    model: "sonnet",
+                },
+                RolePreset {
+                    name: "coder",
+                    provider: providers[1].to_string(),
+                    model: "opus",
+                },
+                RolePreset {
+                    name: "reviewer",
+                    provider: providers[2].to_string(),
+                    model: "sonnet",
+                },
             ])
         }
         "duo" => {
             if providers.len() < 2 {
                 bail!(
-                    "Preset 'duo' requires at least 2 configured providers, found {}.\nAdd more with: claude-model-switch add <name> --base-url <url> --haiku <m> --sonnet <m> --opus <m>",
+                    "Preset 'duo' requires at least 2 configured providers, found {}.\nAdd more with: claude-model-switch add <name> --base-url <url> [--haiku <m> --sonnet <m> --opus <m>]",
                     providers.len()
                 );
             }
             Ok(vec![
-                RolePreset { name: "planner", provider: providers[0].to_string(), model: "sonnet" },
-                RolePreset { name: "coder", provider: providers[1].to_string(), model: "opus" },
+                RolePreset {
+                    name: "planner",
+                    provider: providers[0].to_string(),
+                    model: "sonnet",
+                },
+                RolePreset {
+                    name: "coder",
+                    provider: providers[1].to_string(),
+                    model: "opus",
+                },
             ])
         }
         _ => bail!("Unknown preset '{}'. Supported presets: trio, duo", preset),
